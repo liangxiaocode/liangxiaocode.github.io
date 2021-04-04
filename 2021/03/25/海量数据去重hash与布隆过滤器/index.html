@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/food_blogger_32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/food_blogger_16.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"liangxiaocode.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"b2t":true,"sidebar":false,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="面试经常问到的问题一：缓存穿透问题如何解决什么是缓存穿透 请求数据的时候，为了减轻落盘数据库(mysql)的访问压力，在server端与mysql之间加入一层缓冲数据层 穿透场景发生在，redis,mysql中都没数据时，server端向数据库请求数据时，请求压力全部涌向落盘数据库(mysql)  什么是数据请求步骤以及解决方法 需求从海量数据中查询某字符串是否存在">
+<meta property="og:type" content="article">
+<meta property="og:title" content="海量数据去重hash与布隆过滤器">
+<meta property="og:url" content="https://liangxiaocode.github.io/2021/03/25/%E6%B5%B7%E9%87%8F%E6%95%B0%E6%8D%AE%E5%8E%BB%E9%87%8Dhash%E4%B8%8E%E5%B8%83%E9%9A%86%E8%BF%87%E6%BB%A4%E5%99%A8/index.html">
+<meta property="og:site_name" content="梁萧code">
+<meta property="og:description" content="面试经常问到的问题一：缓存穿透问题如何解决什么是缓存穿透 请求数据的时候，为了减轻落盘数据库(mysql)的访问压力，在server端与mysql之间加入一层缓冲数据层 穿透场景发生在，redis,mysql中都没数据时，server端向数据库请求数据时，请求压力全部涌向落盘数据库(mysql)  什么是数据请求步骤以及解决方法 需求从海量数据中查询某字符串是否存在">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://liangxiaocode.github.io/2021/03/25/%E6%B5%B7%E9%87%8F%E6%95%B0%E6%8D%AE%E5%8E%BB%E9%87%8Dhash%E4%B8%8E%E5%B8%83%E9%9A%86%E8%BF%87%E6%BB%A4%E5%99%A8/image1.png">
+<meta property="og:image" content="https://liangxiaocode.github.io/2021/03/25/%E6%B5%B7%E9%87%8F%E6%95%B0%E6%8D%AE%E5%8E%BB%E9%87%8Dhash%E4%B8%8E%E5%B8%83%E9%9A%86%E8%BF%87%E6%BB%A4%E5%99%A8/image2.png">
+<meta property="article:published_time" content="2021-03-24T16:00:00.000Z">
+<meta property="article:modified_time" content="2021-04-03T04:18:48.015Z">
+<meta property="article:author" content="梁路">
+<meta property="article:tag" content="面试常问题">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://liangxiaocode.github.io/2021/03/25/%E6%B5%B7%E9%87%8F%E6%95%B0%E6%8D%AE%E5%8E%BB%E9%87%8Dhash%E4%B8%8E%E5%B8%83%E9%9A%86%E8%BF%87%E6%BB%A4%E5%99%A8/image1.png">
+
+<link rel="canonical" href="https://liangxiaocode.github.io/2021/03/25/%E6%B5%B7%E9%87%8F%E6%95%B0%E6%8D%AE%E5%8E%BB%E9%87%8Dhash%E4%B8%8E%E5%B8%83%E9%9A%86%E8%BF%87%E6%BB%A4%E5%99%A8/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>海量数据去重hash与布隆过滤器 | 梁萧code</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+<link rel="alternate" href="/atom.xml" title="梁萧code" type="application/atom+xml">
+</head>
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+	<a target="_blank" rel="noopener" href="https://github.com/liangxiaocode/liangxiaocode.github.io" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#70B7FD; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a><style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">梁萧code</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">记录学习中的点点滴滴</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="tags fa-fw"></i>标签<span class="badge">2</span></a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="th fa-fw"></i>分类<span class="badge">4</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="archive fa-fw"></i>归档<span class="badge">10</span></a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://liangxiaocode.github.io/2021/03/25/%E6%B5%B7%E9%87%8F%E6%95%B0%E6%8D%AE%E5%8E%BB%E9%87%8Dhash%E4%B8%8E%E5%B8%83%E9%9A%86%E8%BF%87%E6%BB%A4%E5%99%A8/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/my_blog_image.jpg">
+      <meta itemprop="name" content="梁路">
+      <meta itemprop="description" content="爱一个人太累，所以还是努力赚钱吧">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="梁萧code">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          海量数据去重hash与布隆过滤器
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2021-03-25 00:00:00" itemprop="dateCreated datePublished" datetime="2021-03-25T00:00:00+08:00">2021-03-25</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2021-04-03 12:18:48" itemprop="dateModified" datetime="2021-04-03T12:18:48+08:00">2021-04-03</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B8%8E%E7%AE%97%E6%B3%95/" itemprop="url" rel="index"><span itemprop="name">数据结构与算法</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h3 id="面试经常问到的问题一：缓存穿透问题如何解决"><a href="#面试经常问到的问题一：缓存穿透问题如何解决" class="headerlink" title="面试经常问到的问题一：缓存穿透问题如何解决"></a>面试经常问到的问题一：缓存穿透问题如何解决</h3><h4 id="什么是缓存穿透"><a href="#什么是缓存穿透" class="headerlink" title="什么是缓存穿透"></a>什么是缓存穿透</h4><ul>
+<li>请求数据的时候，为了减轻落盘数据库(mysql)的访问压力，在server端与mysql之间加入一层缓冲数据层</li>
+<li>穿透场景发生在，redis,mysql中都没数据时，server端向数据库请求数据时，请求压力全部涌向落盘数据库(mysql)</li>
+</ul>
+<h4 id="什么是数据请求步骤以及解决方法"><a href="#什么是数据请求步骤以及解决方法" class="headerlink" title="什么是数据请求步骤以及解决方法"></a>什么是数据请求步骤以及解决方法</h4><p><img src="/2021/03/25/%E6%B5%B7%E9%87%8F%E6%95%B0%E6%8D%AE%E5%8E%BB%E9%87%8Dhash%E4%B8%8E%E5%B8%83%E9%9A%86%E8%BF%87%E6%BB%A4%E5%99%A8/image1.png" alt="image-20210403120209067"></p>
+<h3 id="需求"><a href="#需求" class="headerlink" title="需求"></a>需求</h3><p>从海量数据中查询某字符串是否存在</p>
+<span id="more"></span>
+
+<h3 id="set和map"><a href="#set和map" class="headerlink" title="set和map"></a>set和map</h3><ul>
+<li>c++标准库（STL）中的set和map结构都是采⽤红⿊树实现的，它增删改查的时间复杂度是O(logn);</li>
+<li>对于严格平衡⼆叉搜索树(AVL)，100w条数据组成的红⿊树，只需要⽐较20次就能找到该值；对于10亿条数据只需要⽐较30次就能找到该数据；也就是查找次数跟树的⾼度是⼀致的；</li>
+<li>对于红⿊树来说平衡的是⿊节点⾼度，所以研究⽐较次数需要考虑树的⾼度差，最好情况某条树链路全是⿊节点，假设此时⾼度为h1，最差情况某条树链路全是⿊红节点间隔，那么此时树⾼度为2*h1;</li>
+<li>另外set和map的关键区别是set不存储val字段；</li>
+<li>优点：存储效率高，访问速度高效；</li>
+<li>缺点：对于数据量大且查询字符串比较长且查询字符串相似时将会很麻烦；</li>
+</ul>
+<h3 id="unordered-map"><a href="#unordered-map" class="headerlink" title="unordered_map"></a>unordered_map</h3><ul>
+<li><p>c++标准库（STL）中的unordered_map&lt;string, bool&gt;是采⽤hashtable实现的；</p>
+</li>
+<li><p>构成：数组+hash函数；</p>
+</li>
+<li><p>它是将字符串通过hash函数⽣成⼀个整数再映射到数组当中；它增删改查的时间复杂度是o(1);</p>
+</li>
+<li><p>hash函数的作⽤：<strong>避免插⼊的时候字符串的⽐较</strong>；hash函数计算出来的值通过对数组⻓度的取模能<strong>随机分布</strong>在数组当中；</p>
+</li>
+<li><p>hash函数⼀般返回的是64位整数，将多个⼤数映射到⼀个⼩数组中，必然会产⽣冲突；</p>
+</li>
+<li><p>如何选取hash函数？</p>
+<ol>
+<li><p>选取计算速度快；</p>
+</li>
+<li><p>哈希相似字符串能保持<strong>强随机分布性</strong>（防碰撞）；</p>
+</li>
+</ol>
+</li>
+<li><p>murmurhash1，<strong>murmurhash2</strong>，murmurhash3，<strong>siphash</strong>（redis6.0当中使⽤，rust等⼤多数语⾔选⽤的hash算法来实现hashmap），cityhash都具备强随机分布性。</p>
+</li>
+<li><p>负载因子：数据存储元素的个数、数组长度；负载因子越小，冲突越小；负载因子越大，冲突越大；</p>
+</li>
+</ul>
+<h4 id="hash冲突解决方案"><a href="#hash冲突解决方案" class="headerlink" title="hash冲突解决方案"></a>hash冲突解决方案</h4><ul>
+<li>链表法：如果链表过长，经验上通常超过256个节点的时候将链表结构转换为红黑树结构，时间复杂度由O(n)-&gt;O(log<del>2</del>n);</li>
+<li>开放寻址法<ol>
+<li>i+1,i+2,i+3,i+4 … i+n</li>
+<li>i-1^2^ ,i+2^2^,i-3^2^,i+4^2^…</li>
+</ol>
+</li>
+</ul>
+<p>这两种都会导致<strong>同类hash聚集</strong>；也就是近似值它的hash值也近似，那么它的数组槽位也靠近，形成hash聚集；第⼀种同类聚集冲突在前，第⼆种只是将聚集冲突延后；</p>
+<ul>
+<li>同样的hashtable中节点存储了key和val，hashtable并没有要求key的⼤⼩顺序，我们同样可以修改代码让插⼊存在的数据变成修改操作；</li>
+<li>优点：访问速度更快；<strong>不需要进⾏字符串⽐较</strong>；</li>
+<li>缺点：需要引⼊策略避免冲突，存储效率不⾼；空间换时间；</li>
+</ul>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>红黑树和hashtable都不能解决海量数据问题，它们都需要存储具体字符串，如果数据量大，提供不了几百G的内存，因此需要尝试探寻不存储key的方案，并且拥有hashtable的优点（不需要比较字符串）</p>
+<h3 id="布隆过滤器"><a href="#布隆过滤器" class="headerlink" title="布隆过滤器"></a>布隆过滤器</h3><ul>
+<li><p>定义：布隆过滤器是一种概率型数据结构，它的特点时高效的插入和查询，能明确告知某个字符串一定不存在或者可能存在；</p>
+</li>
+<li><p>布隆过滤器相比传统的查询结构（比如：hashtabl,map,set等数据结构）更加高效，占用空间更小；但是其缺点就是它返回的结果是具有概率性的，结果存在误差，虽然这个误差是可控的；于此同时，它不支持删除操作；因为你不知道当前位=1的点是由哪个数据通过哪个hash函数映射过来的；</p>
+</li>
+<li><p>组成：由位图(bit数组)+n个hash函数；</p>
+<p><img src="/2021/03/25/%E6%B5%B7%E9%87%8F%E6%95%B0%E6%8D%AE%E5%8E%BB%E9%87%8Dhash%E4%B8%8E%E5%B8%83%E9%9A%86%E8%BF%87%E6%BB%A4%E5%99%A8/image2.png" alt="image-20210403120904421"></p>
+</li>
+<li><p>原理：当一个元素加入到位图的时候，我们通过K个hash函数将这个元素映射到位图的K个点，并把它们的当前位置为1；因此在检索时，再通过K个hash函数运算检测位图的K个点是否都为1；如果有不为1的点，那么可以认为该数据不存在；如果全部为1，则可能存在（存在误差）；</p>
+</li>
+<li><p>在实际应⽤过程中，布隆过滤器该如何使⽤？要选择多少个hash函数，要分配多少空间的位图，存储多少元素？另外如何控制假阳率（布隆过滤器能明确⼀定不存在，不能明确⼀定存在，那么存在的判断是有误差的，假阳率就是错误判断存在的概率）？</p>
+</li>
+</ul>
+<p>n – 布隆过滤器中元素的个数</p>
+<p>p – 假阳率，在0-1之间 0.000000</p>
+<p>m – 位图所占空间</p>
+<p>k – hash函数的个数</p>
+<p>公式如下：</p>
+<p>n = ceil(m / (-k / log(1 - exp(log(p) / k))))</p>
+<p>p = pow(1 - exp(-k / (m / n)), k)</p>
+<p>m = ceil((n * log(p)) / log(1 / pow(2, log(2))));</p>
+<p>k = round((m / n) * log(2));</p>
+<ul>
+<li><p>在实际应用中，我们确定n和p，通过公式计算得出m和k，也可以在网站上选取合适的值：<a target="_blank" rel="noopener" href="https://hur.st/bloomfilter">https://hur.st/bloomfilter</a></p>
+</li>
+<li><p>n,p,m,k四个值之间的关系：</p>
+<ol>
+<li>m与k一定时，p与n成正相关</li>
+<li>n与k一定时，p和m成负相关</li>
+<li>n与m一定时，假阳率p会在某一特定的hash函数个数k取最小值，二者的关系近似一个二次函数的关系</li>
+</ol>
+</li>
+<li><p>已知k，如何选择hash函数？</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//用双重hash的方法</span></span><br><span class="line"><span class="comment">//采用一个hash函数，给hash传不同的种子偏移值</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> MIX_UINT64(V)  ((uint32_t)((v&gt;&gt;32)^(v)))</span></span><br><span class="line"><span class="comment">//偏移32位</span></span><br><span class="line"><span class="keyword">uint64_t</span> hash1 = MurmurHash2_x64(key, len, Seed);</span><br><span class="line"><span class="keyword">uint64_t</span> hash2 = MurmurHash2_x64(key, len, MIX_UINT64(hash1));</span><br><span class="line"><span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; k; i++) <span class="comment">// k 是hash函数的个数</span></span><br><span class="line">&#123;</span><br><span class="line"> Pos[i] = (hash1 + i*hash2) % m; <span class="comment">// m 是位图的⼤⼩</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// 通过这种⽅式来模拟 k 个hash函数 跟我们前⾯开放寻址法 双重hash是⼀样的思路</span></span><br></pre></td></tr></table></figure></li>
+</ul>
+
+    </div>
+
+    
+    
+    
+	<div>
+		
+			<div>
+    
+        <div style="text-align:center;color: #ccc;font-size:14px;">-------------本文结束<i class="fa fa-paw"></i>感谢您的阅读-------------</div>
+    
+</div>
+		
+	</div>
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E9%9D%A2%E8%AF%95%E5%B8%B8%E9%97%AE%E9%A2%98/" rel="tag"><i class="fa fa-tag"></i># 面试常问题</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2021/03/24/mysql%E5%BA%95%E5%B1%82%E9%9D%A2%E8%AF%95%E5%BF%85%E8%81%8A/" rel="prev" title="mysql底层面试必聊">
+      <i class="fa fa-chevron-left"></i> mysql底层面试必聊
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2021/03/29/Linux%E7%B3%BB%E7%BB%9F%E8%BF%90%E8%A1%8C%E6%97%B6%E6%80%A7%E8%83%BD%E5%8F%82%E6%95%B0%E5%91%BD%E4%BB%A4/" rel="next" title="Linux系统运行时性能参数命令">
+      Linux系统运行时性能参数命令 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%9D%A2%E8%AF%95%E7%BB%8F%E5%B8%B8%E9%97%AE%E5%88%B0%E7%9A%84%E9%97%AE%E9%A2%98%E4%B8%80%EF%BC%9A%E7%BC%93%E5%AD%98%E7%A9%BF%E9%80%8F%E9%97%AE%E9%A2%98%E5%A6%82%E4%BD%95%E8%A7%A3%E5%86%B3"><span class="nav-number">1.</span> <span class="nav-text">面试经常问到的问题一：缓存穿透问题如何解决</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%BB%80%E4%B9%88%E6%98%AF%E7%BC%93%E5%AD%98%E7%A9%BF%E9%80%8F"><span class="nav-number">1.1.</span> <span class="nav-text">什么是缓存穿透</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%BB%80%E4%B9%88%E6%98%AF%E6%95%B0%E6%8D%AE%E8%AF%B7%E6%B1%82%E6%AD%A5%E9%AA%A4%E4%BB%A5%E5%8F%8A%E8%A7%A3%E5%86%B3%E6%96%B9%E6%B3%95"><span class="nav-number">1.2.</span> <span class="nav-text">什么是数据请求步骤以及解决方法</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%9C%80%E6%B1%82"><span class="nav-number">2.</span> <span class="nav-text">需求</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#set%E5%92%8Cmap"><span class="nav-number">3.</span> <span class="nav-text">set和map</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#unordered-map"><span class="nav-number">4.</span> <span class="nav-text">unordered_map</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#hash%E5%86%B2%E7%AA%81%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88"><span class="nav-number">4.1.</span> <span class="nav-text">hash冲突解决方案</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">5.</span> <span class="nav-text">总结</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%B8%83%E9%9A%86%E8%BF%87%E6%BB%A4%E5%99%A8"><span class="nav-number">6.</span> <span class="nav-text">布隆过滤器</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="梁路"
+      src="/images/my_blog_image.jpg">
+  <p class="site-author-name" itemprop="name">梁路</p>
+  <div class="site-description" itemprop="description">爱一个人太累，所以还是努力赚钱吧</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">10</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">2</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/liangxiaocode/liangxiaocode.github.io" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;liangxiaocode&#x2F;liangxiaocode.github.io" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:liangluco_worker@163.com" title="E-Mail → mailto:liangluco_worker@163.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">梁路</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div><script color="0,0,255" opacity="0.5" zIndex="-1" count="99" src="https://cdn.jsdelivr.net/npm/canvas-nest.js@1/dist/canvas-nest.js"></script>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+  <script defer src="/lib/three/three.min.js"></script>
+    <script defer src="true"></script>
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"pluginRootPath":"live2dw/","pluginJsPath":"lib/","pluginModelPath":"assets/","tagMode":false,"model":{"jsonPath":"/live2dw/assets/wanko.model.json"},"display":{"position":"right","width":150,"height":300},"mobile":{"show":false},"log":false});</script></body>
+</html>
+<!-- 页面点击小红心 -->
+<script type="text/javascript" src="/js/love.js"></script>

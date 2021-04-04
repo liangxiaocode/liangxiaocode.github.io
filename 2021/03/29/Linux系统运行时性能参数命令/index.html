@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/food_blogger_32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/food_blogger_16.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"liangxiaocode.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"b2t":true,"sidebar":false,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="Linux、cpu、硬盘、内存、网络状态监控 Linux、cpu、硬盘、内存、网络性能测试 Linux、cpu、硬盘、内存、网络性常见性能问题的排查 Linux常用命令的用法">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux系统运行时性能参数命令">
+<meta property="og:url" content="https://liangxiaocode.github.io/2021/03/29/Linux%E7%B3%BB%E7%BB%9F%E8%BF%90%E8%A1%8C%E6%97%B6%E6%80%A7%E8%83%BD%E5%8F%82%E6%95%B0%E5%91%BD%E4%BB%A4/index.html">
+<meta property="og:site_name" content="梁萧code">
+<meta property="og:description" content="Linux、cpu、硬盘、内存、网络状态监控 Linux、cpu、硬盘、内存、网络性能测试 Linux、cpu、硬盘、内存、网络性常见性能问题的排查 Linux常用命令的用法">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://liangxiaocode.github.io/2021/03/29/Linux%E7%B3%BB%E7%BB%9F%E8%BF%90%E8%A1%8C%E6%97%B6%E6%80%A7%E8%83%BD%E5%8F%82%E6%95%B0%E5%91%BD%E4%BB%A4/image1.png">
+<meta property="og:image" content="https://liangxiaocode.github.io/2021/03/29/Linux%E7%B3%BB%E7%BB%9F%E8%BF%90%E8%A1%8C%E6%97%B6%E6%80%A7%E8%83%BD%E5%8F%82%E6%95%B0%E5%91%BD%E4%BB%A4/image2.png">
+<meta property="og:image" content="https://liangxiaocode.github.io/2021/03/29/Linux%E7%B3%BB%E7%BB%9F%E8%BF%90%E8%A1%8C%E6%97%B6%E6%80%A7%E8%83%BD%E5%8F%82%E6%95%B0%E5%91%BD%E4%BB%A4/image3.png">
+<meta property="og:image" content="https://liangxiaocode.github.io/2021/03/29/Linux%E7%B3%BB%E7%BB%9F%E8%BF%90%E8%A1%8C%E6%97%B6%E6%80%A7%E8%83%BD%E5%8F%82%E6%95%B0%E5%91%BD%E4%BB%A4/image4.png">
+<meta property="og:image" content="https://liangxiaocode.github.io/2021/03/29/Linux%E7%B3%BB%E7%BB%9F%E8%BF%90%E8%A1%8C%E6%97%B6%E6%80%A7%E8%83%BD%E5%8F%82%E6%95%B0%E5%91%BD%E4%BB%A4/image5.png">
+<meta property="og:image" content="https://liangxiaocode.github.io/2021/03/29/Linux%E7%B3%BB%E7%BB%9F%E8%BF%90%E8%A1%8C%E6%97%B6%E6%80%A7%E8%83%BD%E5%8F%82%E6%95%B0%E5%91%BD%E4%BB%A4/image6.png">
+<meta property="og:image" content="https://liangxiaocode.github.io/2021/03/29/Linux%E7%B3%BB%E7%BB%9F%E8%BF%90%E8%A1%8C%E6%97%B6%E6%80%A7%E8%83%BD%E5%8F%82%E6%95%B0%E5%91%BD%E4%BB%A4/image7.png">
+<meta property="article:published_time" content="2021-03-28T16:00:00.000Z">
+<meta property="article:modified_time" content="2021-04-04T02:21:39.305Z">
+<meta property="article:author" content="梁路">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://liangxiaocode.github.io/2021/03/29/Linux%E7%B3%BB%E7%BB%9F%E8%BF%90%E8%A1%8C%E6%97%B6%E6%80%A7%E8%83%BD%E5%8F%82%E6%95%B0%E5%91%BD%E4%BB%A4/image1.png">
+
+<link rel="canonical" href="https://liangxiaocode.github.io/2021/03/29/Linux%E7%B3%BB%E7%BB%9F%E8%BF%90%E8%A1%8C%E6%97%B6%E6%80%A7%E8%83%BD%E5%8F%82%E6%95%B0%E5%91%BD%E4%BB%A4/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Linux系统运行时性能参数命令 | 梁萧code</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+<link rel="alternate" href="/atom.xml" title="梁萧code" type="application/atom+xml">
+</head>
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+	<a target="_blank" rel="noopener" href="https://github.com/liangxiaocode/liangxiaocode.github.io" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#70B7FD; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a><style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">梁萧code</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">记录学习中的点点滴滴</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="tags fa-fw"></i>标签<span class="badge">2</span></a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="th fa-fw"></i>分类<span class="badge">4</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="archive fa-fw"></i>归档<span class="badge">10</span></a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://liangxiaocode.github.io/2021/03/29/Linux%E7%B3%BB%E7%BB%9F%E8%BF%90%E8%A1%8C%E6%97%B6%E6%80%A7%E8%83%BD%E5%8F%82%E6%95%B0%E5%91%BD%E4%BB%A4/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/my_blog_image.jpg">
+      <meta itemprop="name" content="梁路">
+      <meta itemprop="description" content="爱一个人太累，所以还是努力赚钱吧">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="梁萧code">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Linux系统运行时性能参数命令
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2021-03-29 00:00:00" itemprop="dateCreated datePublished" datetime="2021-03-29T00:00:00+08:00">2021-03-29</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2021-04-04 10:21:39" itemprop="dateModified" datetime="2021-04-04T10:21:39+08:00">2021-04-04</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Linux/" itemprop="url" rel="index"><span itemprop="name">Linux</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <ul>
+<li>Linux、cpu、硬盘、内存、网络状态监控</li>
+<li>Linux、cpu、硬盘、内存、网络性能测试</li>
+<li>Linux、cpu、硬盘、内存、网络性常见性能问题的排查</li>
+<li>Linux常用命令的用法</li>
+</ul>
+<span id="more"></span>
+
+<h2 id="监控"><a href="#监控" class="headerlink" title="监控"></a>监控</h2><p>常用的命令：</p>
+<ul>
+<li>free用于显示系统内存的使用情况，包括总统内存、已经使用的内存；还可以用于显示系统内核使用的缓冲区，包括缓冲(buffer)和缓存(cache)等</li>
+<li>ping命令是用于检测网络故障的常用命令，可以用来测试一台主机到另一台主机的网络是否连通</li>
+<li>vmstat(VirtualMemoryStatistics,虚拟内存统计)</li>
+<li>iostat 用于报告CPU统计信息和整个系统、适配器、tty设备、磁盘和CD-ROM的输入/输出统计信息</li>
+<li>dstat 显示了CPU使用情况，磁盘io情况，网络发包情况和换页情况，输出是彩色的，可读性强，相对于vmstat和iostat的输入更加详细且较为直观。</li>
+<li>pidstat 主要用于监控全部或指定进程占用系统资源的情况，如CPU，内存、设备IO、任务切换、线程等。</li>
+<li>top 汇总区域显示了五个方面的系统性能信息：负载、进程状态、CPU使用率、内存使用、SWAP分区。</li>
+<li>iotop LINUX进程实时监控工具，界面风格类似top命令。</li>
+<li>htop Linux系统中的一个互动的进程查看器，一个文本模式的应用程序(在控制台或者Xshell终端中)，需要nucurses。</li>
+<li>mpstat 报告CPU的统计信息。</li>
+<li>netstat 用于显示与IP、TCP、UDP和ICMP协议相关的统计数据，一般用于检验本机各端口的网络连接情况。</li>
+<li>ps 显示当前进程的状态</li>
+<li>strace 跟踪程序执行过程中产生的系统调用以及接收到的信号，帮助分析程序或命令执行中遇到的异常情况。</li>
+<li>Itrace 跟踪进程调用库函数的情况。</li>
+<li>uptime 能够打印系统总共运行了多长时间和系统的平均负载，uptime命令最后三个数字的含义分别是1分钟，5分钟，15分钟内的系统平均负载。</li>
+<li>lsof 是一个列出当前系统打开文件的工具。</li>
+<li><strong>perf</strong> 是Linux kernel自带的系统性能优化工具。优势在于与Linux kernel的紧密结合，它可以最先应用到加入Kernel的new feature，用于查看热点函数，查看cashe miss的比率，从而帮助开发者来优化程序性能。</li>
+<li>tcpdump</li>
+<li>sar</li>
+<li>blktrace</li>
+<li><img src="/2021/03/29/Linux%E7%B3%BB%E7%BB%9F%E8%BF%90%E8%A1%8C%E6%97%B6%E6%80%A7%E8%83%BD%E5%8F%82%E6%95%B0%E5%91%BD%E4%BB%A4/image1.png" alt="image-20210329155632068"></li>
+</ul>
+<p>Linux CPU的使用率主要是从以下几个维度进行统计：</p>
+<ul>
+<li>%usr: 普通进程在用户模式下执行的时间。</li>
+<li>%sys: 进程在内核模式下的执行时间。</li>
+<li>%nice: 被提高优先级的进程在用户模式下的执行时间。</li>
+<li>%idle: 空闲时间。</li>
+<li>%iowait: 等待I/O完成的时间。</li>
+<li>%irp: 处理硬中断请求花费的时间。</li>
+<li>%soft: 处理软中断请求花费的时间。</li>
+<li>%steal: 是衡量虚拟机CPU的指标，是指分配给本虚拟机的时间片被同一宿主机别的虚拟机占用，一般%steal值较高时，说明宿主机的资源使用已达到瓶颈。</li>
+</ul>
+<p><strong>⼀般情况下，CPU⼤部分的时间⽚都是消耗在⽤户态和内核态上。</strong></p>
+<p>​       sys和user间的⽐例是相互影响的，%sys⽐例⾼意味着被测服务频繁的进⾏⽤户态和系统态之间的切换， 会带来⼀定的CPU开销，这样分配处理业务的时间⽚就会较少，造成系统性能的下降。对于IO密集型系 统，⽆论是⽹络IO还是磁盘IO，⼀般都会产⽣⼤量的中断，从⽽导致%sys相对升⾼，其中磁盘IO密集型系 统，对磁盘的读写需要占⽤⼤量的CPU，会导致%iowait的值⼀定⽐例的升⾼，所以当出现%iowait较⾼ 时，需排查是否存在⼤量的不合理的⽇志操作，或者频繁的数据载⼊等情况；</p>
+<h3 id="uptime"><a href="#uptime" class="headerlink" title="uptime"></a>uptime</h3><p>系统的平均负载是指在特定的时间间隔内队列运行的平均进程数。如果一个进程满足以下条件，它就会位于运行队列中：</p>
+<ul>
+<li>它没有在等待I/O操作的结果</li>
+<li>它没有主动进入等待状态（业绩也是没有调用wait()相关的系统API）</li>
+<li>没有被停止</li>
+</ul>
+<p>如果每个CPU内核的当前活动进程数不大于3的话，那么系统的性能还算可以支持；如果每个CPU内核的任务数大于5，那么这台机器性能有严重问题；例如你是一个双核的CPU的话，当Load Average为6的时候就说明机器以及被充分利用。</p>
+<p><img src="/2021/03/29/Linux%E7%B3%BB%E7%BB%9F%E8%BF%90%E8%A1%8C%E6%97%B6%E6%80%A7%E8%83%BD%E5%8F%82%E6%95%B0%E5%91%BD%E4%BB%A4/image2.png" alt="image-20210329161426430"></p>
+<h3 id="ulimit"><a href="#ulimit" class="headerlink" title="ulimit"></a>ulimit</h3><p>为了提高性能，可以根据硬件资源的具体情况设置各个用户的最大进程数和打开的最大文件句柄数。可以用ulimit -a来显示当前的各种系统对用户使用资源的限制：</p>
+<p><img src="/2021/03/29/Linux%E7%B3%BB%E7%BB%9F%E8%BF%90%E8%A1%8C%E6%97%B6%E6%80%A7%E8%83%BD%E5%8F%82%E6%95%B0%E5%91%BD%E4%BB%A4/image3.png" alt="image-20210329162011475"></p>
+<p>设置用户最大进程数：ulimit -u 1024</p>
+<p>设置用户可以打开的最大文件句柄数：ulimit -n 65535</p>
+<h3 id="curl-http"><a href="#curl-http" class="headerlink" title="curl http"></a>curl http</h3><p>由于当前的线上服务较多地使用了RESTful风格的API，所以集成测试就需要进行HTTP的调用，查看返回的结果是否符合预期。</p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">curl -i <span class="string">&quot;http://www.taobao.com&quot;</span> <span class="comment">#打印请求响应头信息</span></span><br><span class="line">curl -l <span class="string">&quot;http://www.taobao.com&quot;</span> <span class="comment">#仅打印http头</span></span><br><span class="line">curl -v <span class="string">&quot;http://www.taobao.com&quot;</span> <span class="comment">#打印更多调试信息</span></span><br><span class="line">curl -verbose <span class="string">&quot;http://www.taobao.com&quot;</span> <span class="comment">#打印更多调试信息</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="sed"><a href="#sed" class="headerlink" title="sed"></a>sed</h3><p>sed命令是用来批处理修改文本内容的，比如批量替换配置中的某个IP。sed命令在处理时，会先读取一行，把当前处理的行存储在临时缓冲区中，处理完缓冲区中的内容后，打印到屏幕上。然后再读入下一行，执行下一个循环。不断重复，直到文件末尾。</p>
+<p><a target="_blank" rel="noopener" href="https://github.com/Black-Gold/Learn/blob/1ee76ca2a9bbbbfe04850a1ccc9b9658e1eb39de/Linux_man_cn/sed.md">https://github.com/Black-Gold/Learn/blob/1ee76ca2a9bbbbfe04850a1ccc9b9658e1eb39de/Linux_man_cn/sed.md</a> </p>
+<h3 id="awk"><a href="#awk" class="headerlink" title="awk"></a>awk</h3><p>awk和sed命令类似，只不过sed擅长取行，awk擅长取列。原理：一般是遍历一个文件中的每一行，然后分别对文件的每一行进行处理。</p>
+<p><img src="/2021/03/29/Linux%E7%B3%BB%E7%BB%9F%E8%BF%90%E8%A1%8C%E6%97%B6%E6%80%A7%E8%83%BD%E5%8F%82%E6%95%B0%E5%91%BD%E4%BB%A4/image4.png" alt="image-20210329164615148"></p>
+<p>awk和我们通常的程序不太一样。它分为四个部分：</p>
+<ul>
+<li>BEGIN开头部分，可选。用来设置一些参数，输出一些表头，定义一些变量等。上面的命令仅打印了一行信息。</li>
+<li>END结尾部分，可选。用来计算一些汇总逻辑，或者输出这些内容。上面的命令，使用简单的for循环打印数组rt[i]中的内容。</li>
+<li>Pattern 匹配部分，可选。用来匹配一些需要处理的行。上面的命令中，只匹配tcp开头的行，其他的不处理。</li>
+<li>Action 模块。主要逻辑，按行执行。</li>
+</ul>
+<p><strong>注意点</strong></p>
+<ol>
+<li>awk的主程序部分用单引号’包围，而不是双引号。</li>
+<li>awk的列开始的index是0，而不是1。</li>
+</ol>
+<p><a target="_blank" rel="noopener" href="https://github.com/Black-Gold/Learn/blob/1ee76ca2a9bbbbfe04850a1ccc9b9658e1eb39de/Linux_man_cn/a#wk.md">https://github.com/Black-Gold/Learn/blob/1ee76ca2a9bbbbfe04850a1ccc9b9658e1eb39de/Linux_man_cn/a#wk.md</a> </p>
+<h2 id="查看活动进程的命令"><a href="#查看活动进程的命令" class="headerlink" title="查看活动进程的命令"></a>查看活动进程的命令</h2><ul>
+<li><p>ps用于显示系统内的所用进程。-l或l 采用详细的格式来显示进程状态。</p>
+</li>
+<li><p>top用于查看活动进程的CPU和内存信息，能够实时显示系统中各个进程的资源占用情况，可以按照CPU、内存的使用情况和执行时间对进程进行排序。使用方式：top。</p>
+</li>
+<li><p>pidstat用于监控全部或指定的进程占用系统资源的情况，包括CPU、内存、磁盘I/O、线程切换、线程数等数据。</p>
+<p>​    使用范例：pidstat -urd -p 1 #-u查看CPU的使用信息，-r查看内存的使用信息，-d查看硬盘的使用信息。</p>
+<p><img src="/2021/03/29/Linux%E7%B3%BB%E7%BB%9F%E8%BF%90%E8%A1%8C%E6%97%B6%E6%80%A7%E8%83%BD%E5%8F%82%E6%95%B0%E5%91%BD%E4%BB%A4/image5.png" alt="image-20210329171955370"></p>
+</li>
+</ul>
+<h2 id="查看分区使用情况"><a href="#查看分区使用情况" class="headerlink" title="查看分区使用情况"></a>查看分区使用情况</h2><p>swapon用来查看交互分区的使用情况，使用方法：swapon -s。swap分区通常被称为交换分区，这是一块特殊的硬盘空间，当实际内存不够用时，操作系统会从内存中取出一部分暂时用不到的数据，放在交换分区中，从而为当前运行的程序腾出足够的内存空间。一般来讲，swap分区容量应大于物理内存大小，建议时内存的两倍，但不超过2GB。</p>
+<h2 id="查看网络信息和网络监控命令"><a href="#查看网络信息和网络监控命令" class="headerlink" title="查看网络信息和网络监控命令"></a>查看网络信息和网络监控命令</h2><ul>
+<li><p>ifconfig用于查看机器挂载的网卡情况</p>
+</li>
+<li><p>ping：ping -c 3 baidu.com</p>
+<p><img src="/2021/03/29/Linux%E7%B3%BB%E7%BB%9F%E8%BF%90%E8%A1%8C%E6%97%B6%E6%80%A7%E8%83%BD%E5%8F%82%E6%95%B0%E5%91%BD%E4%BB%A4/image6.png" alt="image-20210330163902516"></p>
+<ul>
+<li>baidu.com(220.181.38.148):主机的域名和IP</li>
+<li>56(84):不带包头包大小和带包头的包大小</li>
+<li>icmp_seq:ping序列，从1开始，如果数字不是顺序增加的意味着丢包了</li>
+<li>ttl:每经过一个路由点，就把预设的TTL数值减1，直到TTL=1就把报文丢掉。从baidu.com返回的报文，到本地主机这里，还剩下的TTL有多少。</li>
+<li>time:响应时间，越小越好。</li>
+<li>倒数第二行：发出去的包数，返回的包数，丢包率，总耗费时间。</li>
+<li>最小/平均/最大响应时间。</li>
+<li>mdev:表示ICMP包的RTT偏离平均值的程度，主要用来衡量网速的稳定性。mdev的值越大说明网速越不稳定。</li>
+</ul>
+</li>
+<li><p>telnet:TCP/IP协议簇的一员，网络远程登录服务的标准协议。telnet IP PORT。端口是23。</p>
+</li>
+<li><p>nc:<strong>验证服务器端口有没有开放。</strong></p>
+</li>
+<li><p>mtr:是Linux系统中的网络连通性测试工具，也可以用来检测丢包率。</p>
+</li>
+<li><p>nslookup:域名解析工具命令。</p>
+</li>
+<li><p>traceroute:可以提供从用户主机到互联网另一端的主机路径，虽然每次数据包由同一出发点到达同一目的地的路径可能不一样，但通常大多数情况下路径是相同的。</p>
+<p><img src="/2021/03/29/Linux%E7%B3%BB%E7%BB%9F%E8%BF%90%E8%A1%8C%E6%97%B6%E6%80%A7%E8%83%BD%E5%8F%82%E6%95%B0%E5%91%BD%E4%BB%A4/image7.png" alt="image-20210330172106091"></p>
+<p>每个记录表示网络一跳，每跳一次表示经过一个网关或者路由；我们看到每行有三个时间，单位是毫秒，指的是这一跳需要的时间。</p>
+</li>
+<li><p>tcpdump:网络状况分析和跟踪工具，是可以用来抓包的实用命令，需要对TCP/IP有所熟悉，过滤使用的信息都是TCP/IP格式。</p>
+</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+	<div>
+		
+			<div>
+    
+        <div style="text-align:center;color: #ccc;font-size:14px;">-------------本文结束<i class="fa fa-paw"></i>感谢您的阅读-------------</div>
+    
+</div>
+		
+	</div>
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2021/03/25/%E6%B5%B7%E9%87%8F%E6%95%B0%E6%8D%AE%E5%8E%BB%E9%87%8Dhash%E4%B8%8E%E5%B8%83%E9%9A%86%E8%BF%87%E6%BB%A4%E5%99%A8/" rel="prev" title="海量数据去重hash与布隆过滤器">
+      <i class="fa fa-chevron-left"></i> 海量数据去重hash与布隆过滤器
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2021/03/30/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F/" rel="next" title="几种常见设计模式">
+      几种常见设计模式 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%9B%91%E6%8E%A7"><span class="nav-number">1.</span> <span class="nav-text">监控</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#uptime"><span class="nav-number">1.1.</span> <span class="nav-text">uptime</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#ulimit"><span class="nav-number">1.2.</span> <span class="nav-text">ulimit</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#curl-http"><span class="nav-number">1.3.</span> <span class="nav-text">curl http</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#sed"><span class="nav-number">1.4.</span> <span class="nav-text">sed</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#awk"><span class="nav-number">1.5.</span> <span class="nav-text">awk</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%9F%A5%E7%9C%8B%E6%B4%BB%E5%8A%A8%E8%BF%9B%E7%A8%8B%E7%9A%84%E5%91%BD%E4%BB%A4"><span class="nav-number">2.</span> <span class="nav-text">查看活动进程的命令</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%9F%A5%E7%9C%8B%E5%88%86%E5%8C%BA%E4%BD%BF%E7%94%A8%E6%83%85%E5%86%B5"><span class="nav-number">3.</span> <span class="nav-text">查看分区使用情况</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%9F%A5%E7%9C%8B%E7%BD%91%E7%BB%9C%E4%BF%A1%E6%81%AF%E5%92%8C%E7%BD%91%E7%BB%9C%E7%9B%91%E6%8E%A7%E5%91%BD%E4%BB%A4"><span class="nav-number">4.</span> <span class="nav-text">查看网络信息和网络监控命令</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="梁路"
+      src="/images/my_blog_image.jpg">
+  <p class="site-author-name" itemprop="name">梁路</p>
+  <div class="site-description" itemprop="description">爱一个人太累，所以还是努力赚钱吧</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">10</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">2</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/liangxiaocode/liangxiaocode.github.io" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;liangxiaocode&#x2F;liangxiaocode.github.io" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:liangluco_worker@163.com" title="E-Mail → mailto:liangluco_worker@163.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">梁路</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div><script color="0,0,255" opacity="0.5" zIndex="-1" count="99" src="https://cdn.jsdelivr.net/npm/canvas-nest.js@1/dist/canvas-nest.js"></script>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+  <script defer src="/lib/three/three.min.js"></script>
+    <script defer src="true"></script>
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"pluginRootPath":"live2dw/","pluginJsPath":"lib/","pluginModelPath":"assets/","tagMode":false,"model":{"jsonPath":"/live2dw/assets/wanko.model.json"},"display":{"position":"right","width":150,"height":300},"mobile":{"show":false},"log":false});</script></body>
+</html>
+<!-- 页面点击小红心 -->
+<script type="text/javascript" src="/js/love.js"></script>
