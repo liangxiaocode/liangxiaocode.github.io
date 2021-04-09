@@ -30,7 +30,7 @@
 <meta property="og:image" content="https://liangxiaocode.github.io/2021/04/05/TCP%E6%9C%8D%E5%8A%A1%E5%99%A8epoll%E7%9A%84%E5%A4%9A%E7%A7%8D%E5%AE%9E%E7%8E%B0/image1.png">
 <meta property="og:image" content="https://liangxiaocode.github.io/2021/04/05/TCP%E6%9C%8D%E5%8A%A1%E5%99%A8epoll%E7%9A%84%E5%A4%9A%E7%A7%8D%E5%AE%9E%E7%8E%B0/image2.png">
 <meta property="article:published_time" content="2021-04-04T16:00:00.000Z">
-<meta property="article:modified_time" content="2021-04-09T01:50:47.492Z">
+<meta property="article:modified_time" content="2021-04-09T01:56:46.154Z">
 <meta property="article:author" content="梁路">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:image" content="https://liangxiaocode.github.io/2021/04/05/TCP%E6%9C%8D%E5%8A%A1%E5%99%A8epoll%E7%9A%84%E5%A4%9A%E7%A7%8D%E5%AE%9E%E7%8E%B0/image1.png">
@@ -199,7 +199,7 @@
                   <i class="far fa-calendar-check"></i>
                 </span>
                 <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2021-04-09 09:50:47" itemprop="dateModified" datetime="2021-04-09T09:50:47+08:00">2021-04-09</time>
+                <time title="修改时间：2021-04-09 09:56:46" itemprop="dateModified" datetime="2021-04-09T09:56:46+08:00">2021-04-09</time>
               </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -232,6 +232,8 @@
 <p><img src="/2021/04/05/TCP%E6%9C%8D%E5%8A%A1%E5%99%A8epoll%E7%9A%84%E5%A4%9A%E7%A7%8D%E5%AE%9E%E7%8E%B0/image1.png" alt="image-20210405111318568"></p>
 <p>当用户调用了select API，那么整个进程就会阻塞，系统就会从用户态进入内核态，Kernel就会监听所有select负责的socket，当任何一个socket中的数据就绪时，select就会返回。用户进程再调用read API，将数据从Kernel拷贝到用户进程。</p>
 <p>从上图可以看出，实时上，我们进行了两个系统调用（select和read），而阻塞IO（blocking IO）事实上只进行了一次系统调用（read），但是使用select的好处是，在一个线程内，它可以监听所有socket的IO请求。当用户可以注册多个socket，可以通过不断地调用select读取被激活的socket，就能达到在一个线程里处理同时处理多个IO请求的目的。</p>
+<span id="more"></span>
+
 <h1 id="Select"><a href="#Select" class="headerlink" title="Select"></a>Select</h1><p>我们先看一下select接口原型：</p>
 <figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">select</span><span class="params">(<span class="keyword">int</span> maxfds, fd_set *readfds, fd_set *writefds,fd_set *exceptfds,struct timeval *timeout)</span></span>;</span><br><span class="line">FD_ZERO(fd_set *fds);</span><br><span class="line">FD_SET(<span class="keyword">int</span> fd,fd_set *fds);</span><br><span class="line">FD_ISSET(<span class="keyword">int</span> fd,fd_set *fds);</span><br><span class="line">FD_CLR(<span class="keyword">int</span> fd,fd_set *fds);</span><br></pre></td></tr></table></figure>
 
