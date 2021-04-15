@@ -4,6 +4,31 @@
   
     
     <entry>
+      <title>posix API与网络协议栈</title>
+      <link href="2021/04/14/posix-API%E4%B8%8E%E7%BD%91%E7%BB%9C%E5%8D%8F%E8%AE%AE%E6%A0%88/"/>
+      <url>2021/04/14/posix-API%E4%B8%8E%E7%BD%91%E7%BB%9C%E5%8D%8F%E8%AE%AE%E6%A0%88/</url>
+      
+        <content type="html"><![CDATA[<h1 id="服务端"><a href="#服务端" class="headerlink" title="服务端"></a>服务端</h1><ul><li>fd = socket();</li><li>bind(); fd –&gt; IP/port</li><li>listen(fd,backlog);</li><li>clientfd = accept(fd,addr,addrlen);</li><li>recv();</li><li>send();</li><li>close();</li></ul><h1 id="客户端"><a href="#客户端" class="headerlink" title="客户端"></a>客户端</h1><ul><li>socket()</li><li>bind(); optional</li><li>connect();</li><li>send();</li><li>recv();</li><li>close();</li></ul><span id="more"></span><h1 id="网络编程流程"><a href="#网络编程流程" class="headerlink" title="网络编程流程"></a>网络编程流程</h1><p><img src="/2021/04/14/posix-API%E4%B8%8E%E7%BD%91%E7%BB%9C%E5%8D%8F%E8%AE%AE%E6%A0%88/image1.png" alt="image-20210414113709591"></p><h1 id="面试中协议栈常问的点"><a href="#面试中协议栈常问的点" class="headerlink" title="面试中协议栈常问的点"></a>面试中协议栈常问的点</h1><ol><li>TCP三次握手过程？</li><li>TCP四次挥手过程？</li><li>为什么建立连接需要三次握手，而断开连接需要四次挥手？</li><li>大量TIME_WAIT和CLOSE_WAIT出现的原因以及解决办法？</li><li>超时重传和快速重传？</li><li>TCP首部长度，有哪些字段？</li><li>TCP在listen时的参数backlog的意义？</li><li>accept发生在三次握手的哪一步？</li><li>三次握手过程中有哪些不安全性？</li><li>TCP和UDP的区别？</li></ol><h2 id="TCP和UDP的区别"><a href="#TCP和UDP的区别" class="headerlink" title="TCP和UDP的区别"></a>TCP和UDP的区别</h2><ul><li>建立连接：UDP不需要建立连接，直接调用sendto()就可以给服务端发送数据，不管对方收没收到。而connet()只是确定从客户端到服务器这条链路是否是通的。而TCP在发送数据之前一定要调用connect()，这样才能让服务器端进入一个特定的状态。</li><li>数据传输：TCP提供无差错的、不丢失的、不重复的且顺序到达的数据，而UDP尽最大努力交付，不保证可靠传输；TCP面向字节流，而UDP面向报文；UDP没有流量控制和拥塞控制，所以出现网络拥塞的情况时不会使数据发送速率降低；TCP只支持点对点通信，而UDP支持一对一，一对多，多对一，多对多通信；</li><li>数据报文：TCP首部开销20字节；UDP首部开销只有8个字节；</li></ul><h2 id="TCP三次握手"><a href="#TCP三次握手" class="headerlink" title="TCP三次握手"></a>TCP三次握手</h2><p>过程：客户端在应用程序调用connect()，将IP地址和端拷贝到协议栈力，协议栈准备一个syn的包，并将TCP的头syn位置1，然后将syn的包发送给服务端。服务端收到数据以后进入一个listen()的状态并返回一个ack，这个ack = seq+1，此时在半连接(SYN)队列里保存客户端的信息。客户端收到syn,ack并发送syn和ack，此时客户端进入Established的状态，服务端收到ACK后也进入Established的状态，并将半连接队列里的结点直接拿到全连接队列里，注意这里不是拷贝。再调用accept()，如果是阻塞状态，那么会一直等待全连接队列里有数据，如果是非阻塞，一旦全连接队列里没有数据，就会返回-1。<strong>三次握手的过程是发生在客户端调用connect()后，协议栈被动实现的过程。它既不是发生在listen()里面，也不是发生在accept()里面。</strong></p><p><img src="/2021/04/14/posix-API%E4%B8%8E%E7%BD%91%E7%BB%9C%E5%8D%8F%E8%AE%AE%E6%A0%88/image2.png" alt="image-20210414125144212"></p><p><img src="/2021/04/14/posix-API%E4%B8%8E%E7%BD%91%E7%BB%9C%E5%8D%8F%E8%AE%AE%E6%A0%88/image3.png" alt="image-20210414125235782"></p><p>存在的小问题：</p><ul><li>通过什么找到半连接队列里对应的客户端的结点：五元组（sip,dip,sport,dport,proto）；</li><li>结点（tcp控制块）的生命周期：一直到close()为止；</li></ul><h2 id="TCP是如何保证顺序的？"><a href="#TCP是如何保证顺序的？" class="headerlink" title="TCP是如何保证顺序的？"></a>TCP是如何保证顺序的？</h2><ul><li>超时重传：TCP有自己的一套超时重传机制。即发送主机每次发送数据的时候，TCP就给每个数据包分配一个序列号并且在特定时间内等待接收主机对分配的这个序列号进行确认，如果超过该时间还没收到接收主机的确认，则发送主机会重传此数据，这就是超时重传。但是接收主机并不能保证收到的数据一定是顺序的，而是根据序列号来检测对方发送的数据是否有丢失或者乱序，接收主机一旦收到已经顺序化的数据，那么它就将这些数据按正确的顺序重组（重排）成数据流并传递到应用层进行处理。</li><li>快速重传：跳过多少个包马上重传，是在KCP协议里用到的。发送端发送了1,2,3,4,5几个包，然后收到远端的ACK: 1, 3, 4, 5，当收到ACK3时，KCP知道2被跳过1次，收到ACK4时，知道2被跳过了2次，此时可以认为2号丢失，不用等超时，直接重传2号包，大大改善了丢包时的传输速度。 </li></ul><h2 id="TCP四次挥手"><a href="#TCP四次挥手" class="headerlink" title="TCP四次挥手"></a>TCP四次挥手</h2><p>过程：应用程序调用close(),协议栈会在原有fd的基础上准备一帧带有fin=1的包发送给服务端，客户端进入fin_wait_1的状态；服务端收到客户端的fin包，发送ACK进入close_wait()的状态，关闭读通道，客户端收到fin应答，进入fin_wait_2的状态；服务端调用close()，发送一个fin包给客户端，进入一个last_ack状态；客户端收到fin,发ACK的包，进入time_wait状态，时长位2msl;服务端收到ACK后进入closed状态，读写通道全部关闭；客户端从time_wait状态进入closed状态后把读通道关闭。</p><p><img src="/2021/04/14/posix-API%E4%B8%8E%E7%BD%91%E7%BB%9C%E5%8D%8F%E8%AE%AE%E6%A0%88/image2.png" alt="image-20210414125144212"></p><p><img src="/2021/04/14/posix-API%E4%B8%8E%E7%BD%91%E7%BB%9C%E5%8D%8F%E8%AE%AE%E6%A0%88/image4.png" alt="image-20210414160125285"></p><h2 id="大量time-wait和close-wait的原因以及解决方法"><a href="#大量time-wait和close-wait的原因以及解决方法" class="headerlink" title="大量time_wait和close_wait的原因以及解决方法"></a>大量time_wait和close_wait的原因以及解决方法</h2><ul><li><p>大量的time_wait</p><ul><li>存在的原因<ol><li>大量短链接的存在。会大量消耗client机器的端口，端口上限只有65535个，端口被耗尽了，后续就无法发起新的连接了。</li><li>time_wait的状态主要是为了保证ACK重发和丢弃延迟数据。如果主动关闭方不进入TIME_WAIT，那么主动关闭方在发送完ACK就走了的话，如果最后发送的ACK在路由过程中丢掉了，最后没能到被动关闭方，这个时候被动关闭方没收到自己FIN的ACK就不能关闭连接，接着被动关闭方会超时重发FIN包，但是这个时候已经没有对端会给该FIN回ACK，被动关闭方就无法正常关闭连接了，所以主动关闭方需要进入TIME_WAIT以便能够重发丢掉的被动关闭方FIN的ACK。</li></ol></li><li>解决方法<ol><li>允许time_wait状态的socket被重用。setsockopt = reuse。</li><li>缩减time_wait时间，可以设置为1MSL。（默认是2MSL = 4mins）。</li></ol></li></ul></li><li><p>大量close_wait</p><ul><li><p>存在的原因</p><p>close_wait存在的原因只有一种情况，就是对方发送FIN包后，服务端没有进一步发送ACK来确认，换句话说就是在对方关闭连接后，程序里没有检测到，或者程序里本身就已经忘了需要调用close()，于是这个资源就一直被占用着。</p></li><li><p>解决方法</p><ol><li>检查业务逻辑代码，尽快修改程序里的bug，比较好的做法是将recv() = 0返回的业务逻辑处理抛给另外一个线程实现。</li></ol></li></ul></li></ul><h2 id="accept发生在三次握手的哪个阶段"><a href="#accept发生在三次握手的哪个阶段" class="headerlink" title="accept发生在三次握手的哪个阶段"></a>accept发生在三次握手的哪个阶段</h2><p>accept()是发生在三次握手完成以后，三次握手完成以后，TCP连接会加入全连接队列，在调用accept()会从全连接队列里返回一个连接，这时的fd就是clientfd，如果队列为空，那么就会阻塞。</p><h2 id="TCP首部有哪些字段"><a href="#TCP首部有哪些字段" class="headerlink" title="TCP首部有哪些字段"></a>TCP首部有哪些字段</h2><p><img src="/2021/04/14/posix-API%E4%B8%8E%E7%BD%91%E7%BB%9C%E5%8D%8F%E8%AE%AE%E6%A0%88/image5.png" alt="image-20210415103253036"></p><h2 id="TCP在listen时的参数backlog的意义"><a href="#TCP在listen时的参数backlog的意义" class="headerlink" title="TCP在listen时的参数backlog的意义"></a>TCP在listen时的参数backlog的意义</h2><p>这里有两个说法：</p><ol><li>在linux系统中，指的是全连接队列的上限。</li><li>而在unix或者mac系统中，指的是全连接队列与半连接队列之和的上限。</li></ol>]]></content>
+      
+      
+      <categories>
+          
+          <category> 网络编程 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 面试常问题 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
       <title>网络I/O多路复用之epoll,select</title>
       <link href="2021/04/05/TCP%E6%9C%8D%E5%8A%A1%E5%99%A8epoll%E7%9A%84%E5%A4%9A%E7%A7%8D%E5%AE%9E%E7%8E%B0/"/>
       <url>2021/04/05/TCP%E6%9C%8D%E5%8A%A1%E5%99%A8epoll%E7%9A%84%E5%A4%9A%E7%A7%8D%E5%AE%9E%E7%8E%B0/</url>
