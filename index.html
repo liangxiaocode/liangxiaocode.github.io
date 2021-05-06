@@ -133,7 +133,7 @@
   </li>
         <li class="menu-item menu-item-archives">
 
-    <a href="/archives/" rel="section"><i class="archive fa-fw"></i>归档<span class="badge">15</span></a>
+    <a href="/archives/" rel="section"><i class="archive fa-fw"></i>归档<span class="badge">16</span></a>
 
   </li>
   </ul>
@@ -159,6 +159,110 @@
 
           <div class="content index posts-expand">
             
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://liangxiaocode.github.io/2021/05/06/%E5%BC%82%E6%AD%A5%E8%AF%B7%E6%B1%82%E6%B1%A0%E6%A1%86%E6%9E%B6%E5%AE%9E%E7%8E%B0/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/my_blog_image.jpg">
+      <meta itemprop="name" content="梁路">
+      <meta itemprop="description" content="爱一个人太累，所以还是努力赚钱吧">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="梁萧code">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2021/05/06/%E5%BC%82%E6%AD%A5%E8%AF%B7%E6%B1%82%E6%B1%A0%E6%A1%86%E6%9E%B6%E5%AE%9E%E7%8E%B0/" class="post-title-link" itemprop="url">异步请求池框架实现</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2021-05-06 00:00:00 / 修改时间：19:45:57" itemprop="dateCreated datePublished" datetime="2021-05-06T00:00:00+08:00">2021-05-06</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%B1%A0%E5%8C%96%E6%8A%80%E6%9C%AF/" itemprop="url" rel="index"><span itemprop="name">池化技术</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h2 id="如何做一个异步请求？"><a href="#如何做一个异步请求？" class="headerlink" title="如何做一个异步请求？"></a>如何做一个异步请求？</h2><ol>
+<li>一个连接还是多个连接？多个连接</li>
+<li>网络IO的基础，发送对应的协议</li>
+<li>既然是多个连接，发送完请求以后，响应没有接收以前，fd存储在哪？ –&gt;fd由epoll进行管理</li>
+<li>请求与响应的数据，不能做到一个线程</li>
+</ol>
+<h2 id="如何设计？"><a href="#如何设计？" class="headerlink" title="如何设计？"></a>如何设计？</h2><h3 id="封装一组API："><a href="#封装一组API：" class="headerlink" title="封装一组API："></a>封装一组API：</h3><ul>
+<li>commit:<ul>
+<li>建立好网络连接</li>
+<li>组织好对应的协议</li>
+<li>send到对应的服务器</li>
+<li>fd是否可读，fd加入epoll</li>
+</ul>
+</li>
+<li>init：异步操作的上下文<ul>
+<li>epoll_create</li>
+<li>pthread_create</li>
+</ul>
+</li>
+<li>callback:<ul>
+<li>epoll_wait(),检测当前fd可读</li>
+<li>recv(fd)，读出所有协议数据，并且解析</li>
+</ul>
+</li>
+<li>destroy<ul>
+<li>close</li>
+<li>pthread_cancel</li>
+</ul>
+</li>
+</ul>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2021/05/06/%E5%BC%82%E6%AD%A5%E8%AF%B7%E6%B1%82%E6%B1%A0%E6%A1%86%E6%9E%B6%E5%AE%9E%E7%8E%B0/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
       
   
   
@@ -966,89 +1070,6 @@
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="https://liangxiaocode.github.io/2021/03/23/%E7%A3%81%E7%9B%98%E5%AD%98%E5%82%A8%E9%93%BE%E5%BC%8F%E7%9A%84B%E6%A0%91%E4%B8%8EB+%E6%A0%91/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/my_blog_image.jpg">
-      <meta itemprop="name" content="梁路">
-      <meta itemprop="description" content="爱一个人太累，所以还是努力赚钱吧">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="梁萧code">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2021/03/23/%E7%A3%81%E7%9B%98%E5%AD%98%E5%82%A8%E9%93%BE%E5%BC%8F%E7%9A%84B%E6%A0%91%E4%B8%8EB+%E6%A0%91/" class="post-title-link" itemprop="url">磁盘存储链式的B树与B+树</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2021-03-23 00:00:00" itemprop="dateCreated datePublished" datetime="2021-03-23T00:00:00+08:00">2021-03-23</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2021-04-02 11:48:45" itemprop="dateModified" datetime="2021-04-02T11:48:45+08:00">2021-04-02</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B8%8E%E7%AE%97%E6%B3%95/" itemprop="url" rel="index"><span itemprop="name">数据结构与算法</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h2 id="为什么磁盘的读写比内存慢"><a href="#为什么磁盘的读写比内存慢" class="headerlink" title="为什么磁盘的读写比内存慢"></a>为什么磁盘的读写比内存慢</h2><p>​        内存是CPU直接通过总线访问的，它是用来储存CPU常用数据的。CPU会频繁的访问内存，所以内存必须拥有足够高的读写速度，才不会成为系统性能的瓶颈。</p>
-<p>​        硬盘是通过串行的方式访问的，它的用途就是永久性的储存数据，速度快不快，一定程度上对系统性能的影响不像内存那么明显。当CPU想要访问硬盘中的数据，只能先把他们读到内存中，也就是加载到内存，然后CPU再访问内存以达到读取数据的目的。加载到内存的过程中，是磁盘再寻址的过程，的确，磁盘的慢就是慢在寻址的过程。</p>
-<p>​        假设红黑树有1024个节点，总共有十层的数据，CPU最差需要通过十次才能拿到想要的数据。因此我们需要引用多叉树，或者说多叉树被常常用在磁盘的存储中。</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2021/03/23/%E7%A3%81%E7%9B%98%E5%AD%98%E5%82%A8%E9%93%BE%E5%BC%8F%E7%9A%84B%E6%A0%91%E4%B8%8EB+%E6%A0%91/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
@@ -1120,7 +1141,7 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">15</span>
+          <span class="site-state-item-count">16</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>

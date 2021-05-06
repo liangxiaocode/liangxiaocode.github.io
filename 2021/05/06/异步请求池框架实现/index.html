@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/food_blogger_32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/food_blogger_16.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"liangxiaocode.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"b2t":true,"sidebar":false,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="如何做一个异步请求？ 一个连接还是多个连接？多个连接 网络IO的基础，发送对应的协议 既然是多个连接，发送完请求以后，响应没有接收以前，fd存储在哪？ –&gt;fd由epoll进行管理 请求与响应的数据，不能做到一个线程  如何设计？封装一组API： commit: 建立好网络连接 组织好对应的协议 send到对应的服务器 fd是否可读，fd加入epoll   init：异步操作的上下文 epo">
+<meta property="og:type" content="article">
+<meta property="og:title" content="异步请求池框架实现">
+<meta property="og:url" content="https://liangxiaocode.github.io/2021/05/06/%E5%BC%82%E6%AD%A5%E8%AF%B7%E6%B1%82%E6%B1%A0%E6%A1%86%E6%9E%B6%E5%AE%9E%E7%8E%B0/index.html">
+<meta property="og:site_name" content="梁萧code">
+<meta property="og:description" content="如何做一个异步请求？ 一个连接还是多个连接？多个连接 网络IO的基础，发送对应的协议 既然是多个连接，发送完请求以后，响应没有接收以前，fd存储在哪？ –&gt;fd由epoll进行管理 请求与响应的数据，不能做到一个线程  如何设计？封装一组API： commit: 建立好网络连接 组织好对应的协议 send到对应的服务器 fd是否可读，fd加入epoll   init：异步操作的上下文 epo">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://liangxiaocode.github.io/2021/05/06/%E5%BC%82%E6%AD%A5%E8%AF%B7%E6%B1%82%E6%B1%A0%E6%A1%86%E6%9E%B6%E5%AE%9E%E7%8E%B0/image1.png">
+<meta property="og:image" content="https://liangxiaocode.github.io/2021/05/06/%E5%BC%82%E6%AD%A5%E8%AF%B7%E6%B1%82%E6%B1%A0%E6%A1%86%E6%9E%B6%E5%AE%9E%E7%8E%B0/image2.png">
+<meta property="og:image" content="https://liangxiaocode.github.io/2021/05/06/%E5%BC%82%E6%AD%A5%E8%AF%B7%E6%B1%82%E6%B1%A0%E6%A1%86%E6%9E%B6%E5%AE%9E%E7%8E%B0/image3.png">
+<meta property="article:published_time" content="2021-05-05T16:00:00.000Z">
+<meta property="article:modified_time" content="2021-05-06T11:45:57.143Z">
+<meta property="article:author" content="梁路">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://liangxiaocode.github.io/2021/05/06/%E5%BC%82%E6%AD%A5%E8%AF%B7%E6%B1%82%E6%B1%A0%E6%A1%86%E6%9E%B6%E5%AE%9E%E7%8E%B0/image1.png">
+
+<link rel="canonical" href="https://liangxiaocode.github.io/2021/05/06/%E5%BC%82%E6%AD%A5%E8%AF%B7%E6%B1%82%E6%B1%A0%E6%A1%86%E6%9E%B6%E5%AE%9E%E7%8E%B0/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>异步请求池框架实现 | 梁萧code</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+<link rel="alternate" href="/atom.xml" title="梁萧code" type="application/atom+xml">
+</head>
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+	<a target="_blank" rel="noopener" href="https://github.com/liangxiaocode/liangxiaocode.github.io" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#70B7FD; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a><style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">梁萧code</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">记录学习中的点点滴滴</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="tags fa-fw"></i>标签<span class="badge">3</span></a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="th fa-fw"></i>分类<span class="badge">7</span></a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="archive fa-fw"></i>归档<span class="badge">16</span></a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://liangxiaocode.github.io/2021/05/06/%E5%BC%82%E6%AD%A5%E8%AF%B7%E6%B1%82%E6%B1%A0%E6%A1%86%E6%9E%B6%E5%AE%9E%E7%8E%B0/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/my_blog_image.jpg">
+      <meta itemprop="name" content="梁路">
+      <meta itemprop="description" content="爱一个人太累，所以还是努力赚钱吧">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="梁萧code">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          异步请求池框架实现
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2021-05-06 00:00:00 / 修改时间：19:45:57" itemprop="dateCreated datePublished" datetime="2021-05-06T00:00:00+08:00">2021-05-06</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%B1%A0%E5%8C%96%E6%8A%80%E6%9C%AF/" itemprop="url" rel="index"><span itemprop="name">池化技术</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="如何做一个异步请求？"><a href="#如何做一个异步请求？" class="headerlink" title="如何做一个异步请求？"></a>如何做一个异步请求？</h2><ol>
+<li>一个连接还是多个连接？多个连接</li>
+<li>网络IO的基础，发送对应的协议</li>
+<li>既然是多个连接，发送完请求以后，响应没有接收以前，fd存储在哪？ –&gt;fd由epoll进行管理</li>
+<li>请求与响应的数据，不能做到一个线程</li>
+</ol>
+<h2 id="如何设计？"><a href="#如何设计？" class="headerlink" title="如何设计？"></a>如何设计？</h2><h3 id="封装一组API："><a href="#封装一组API：" class="headerlink" title="封装一组API："></a>封装一组API：</h3><ul>
+<li>commit:<ul>
+<li>建立好网络连接</li>
+<li>组织好对应的协议</li>
+<li>send到对应的服务器</li>
+<li>fd是否可读，fd加入epoll</li>
+</ul>
+</li>
+<li>init：异步操作的上下文<ul>
+<li>epoll_create</li>
+<li>pthread_create</li>
+</ul>
+</li>
+<li>callback:<ul>
+<li>epoll_wait(),检测当前fd可读</li>
+<li>recv(fd)，读出所有协议数据，并且解析</li>
+</ul>
+</li>
+<li>destroy<ul>
+<li>close</li>
+<li>pthread_cancel</li>
+</ul>
+</li>
+</ul>
+<span id="more"></span>
+
+<h3 id="异步快在哪里？"><a href="#异步快在哪里？" class="headerlink" title="异步快在哪里？"></a>异步快在哪里？</h3><ol>
+<li>同步时串行，需要等待结果</li>
+<li>异步是并行，只管发送请求，一起接收返回结果</li>
+</ol>
+<h2 id="以DNS为例，来实现异步请求池"><a href="#以DNS为例，来实现异步请求池" class="headerlink" title="以DNS为例，来实现异步请求池"></a>以DNS为例，来实现异步请求池</h2><h3 id="commit"><a href="#commit" class="headerlink" title="commit()"></a>commit()</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">dns_async_client_commit</span><span class="params">(struct async_context* ctx, <span class="keyword">const</span> <span class="keyword">char</span> *domain, async_result_cb cb)</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="comment">//建立网络连接</span></span><br><span class="line">	<span class="keyword">int</span> sockfd = socket(AF_INET, SOCK_DGRAM, <span class="number">0</span>);</span><br><span class="line">	<span class="keyword">if</span> (sockfd &lt; <span class="number">0</span>) &#123;</span><br><span class="line">		perror(<span class="string">&quot;create socket failed\n&quot;</span>);</span><br><span class="line">		<span class="built_in">exit</span>(<span class="number">-1</span>);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="built_in">printf</span>(<span class="string">&quot;url:%s\n&quot;</span>, domain);</span><br><span class="line"></span><br><span class="line">	set_block(sockfd, <span class="number">0</span>); <span class="comment">//nonblock</span></span><br><span class="line"></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">sockaddr_in</span> <span class="title">dest</span>;</span></span><br><span class="line">	bzero(&amp;dest, <span class="keyword">sizeof</span>(dest));</span><br><span class="line">	dest.sin_family = AF_INET;</span><br><span class="line">	dest.sin_port = htons(<span class="number">53</span>);</span><br><span class="line">	dest.sin_addr.s_addr = inet_addr(DNS_SVR);</span><br><span class="line">	</span><br><span class="line">	<span class="keyword">int</span> ret = connect(sockfd, (struct sockaddr*)&amp;dest, <span class="keyword">sizeof</span>(dest));</span><br><span class="line">	<span class="comment">//printf(&quot;connect :%d\n&quot;, ret);</span></span><br><span class="line">	</span><br><span class="line">    <span class="comment">//准备好对应的DNS协议</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">dns_header</span> <span class="title">header</span> =</span> &#123;<span class="number">0</span>&#125;;</span><br><span class="line">	dns_create_header(&amp;header);</span><br><span class="line"></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">dns_question</span> <span class="title">question</span> =</span> &#123;<span class="number">0</span>&#125;;</span><br><span class="line">	dns_create_question(&amp;question, domain);</span><br><span class="line"></span><br><span class="line">    <span class="comment">//UDP协议，sendto</span></span><br><span class="line">	<span class="keyword">char</span> request[<span class="number">1024</span>] = &#123;<span class="number">0</span>&#125;;</span><br><span class="line">	<span class="keyword">int</span> req_len = dns_build_request(&amp;header, &amp;question, request);</span><br><span class="line">	<span class="keyword">int</span> slen = sendto(sockfd, request, req_len, <span class="number">0</span>, (struct sockaddr*)&amp;dest, <span class="keyword">sizeof</span>(struct sockaddr));</span><br><span class="line"></span><br><span class="line">    <span class="comment">//fd加入epoll</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">ep_arg</span> *<span class="title">eparg</span> =</span> (struct ep_arg*)<span class="built_in">calloc</span>(<span class="number">1</span>, <span class="keyword">sizeof</span>(struct ep_arg));</span><br><span class="line">	<span class="keyword">if</span> (eparg == <span class="literal">NULL</span>) <span class="keyword">return</span> <span class="number">-1</span>;</span><br><span class="line">	eparg-&gt;sockfd = sockfd;</span><br><span class="line">	eparg-&gt;cb = cb;</span><br><span class="line"></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">epoll_event</span> <span class="title">ev</span>;</span></span><br><span class="line">	ev.data.ptr = eparg;</span><br><span class="line">	ev.events = EPOLLIN;</span><br><span class="line"></span><br><span class="line">	ret = epoll_ctl(ctx-&gt;epfd, EPOLL_CTL_ADD, sockfd, &amp;ev); </span><br><span class="line">	<span class="comment">//printf(&quot; epoll_ctl ADD: sockfd-&gt;%d, ret:%d\n&quot;, sockfd, ret);</span></span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> ret;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">	</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="init"><a href="#init" class="headerlink" title="init()"></a>init()</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">struct async_context *<span class="title">dns_async_client_init</span><span class="params">(<span class="keyword">void</span>)</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="comment">//创建epoll</span></span><br><span class="line">	<span class="keyword">int</span> epfd = epoll_create(<span class="number">1</span>); </span><br><span class="line">	<span class="keyword">if</span> (epfd &lt; <span class="number">0</span>) <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">async_context</span> *<span class="title">ctx</span> =</span> <span class="built_in">calloc</span>(<span class="number">1</span>, <span class="keyword">sizeof</span>(struct async_context));</span><br><span class="line">	<span class="keyword">if</span> (ctx == <span class="literal">NULL</span>) &#123;</span><br><span class="line">		close(epfd);</span><br><span class="line">		<span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">	&#125;</span><br><span class="line">	ctx-&gt;epfd = epfd;</span><br><span class="line"></span><br><span class="line">    <span class="comment">//创建线程</span></span><br><span class="line">	<span class="keyword">pthread_t</span> thread_id;</span><br><span class="line">	<span class="keyword">int</span> ret = pthread_create(&amp;thread_id, <span class="literal">NULL</span>, dns_async_client_callback, ctx);</span><br><span class="line">	<span class="keyword">if</span> (ret) &#123;</span><br><span class="line">		perror(<span class="string">&quot;pthread_create&quot;</span>);</span><br><span class="line">		<span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">	&#125;</span><br><span class="line">	usleep(<span class="number">1</span>);</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> ctx;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="callback"><a href="#callback" class="headerlink" title="callback()"></a>callback()</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">void</span>* <span class="title">dns_async_client_callback</span><span class="params">(<span class="keyword">void</span> *arg)</span> </span>&#123;</span><br><span class="line">    <span class="comment">//拿到上下文</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">async_context</span> *<span class="title">ctx</span> =</span> (struct async_context*)arg;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">int</span> epfd = ctx-&gt;epfd;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">while</span> (<span class="number">1</span>) &#123;</span><br><span class="line"></span><br><span class="line">		<span class="class"><span class="keyword">struct</span> <span class="title">epoll_event</span> <span class="title">events</span>[<span class="title">ASYNC_CLIENT_NUM</span>] =</span> &#123;<span class="number">0</span>&#125;;</span><br><span class="line"></span><br><span class="line">		<span class="keyword">int</span> nready = epoll_wait(epfd, events, ASYNC_CLIENT_NUM, <span class="number">-1</span>);<span class="comment">//timeout = -1表示一直阻塞直到有事件触发</span></span><br><span class="line">		<span class="keyword">if</span> (nready &lt; <span class="number">0</span>) &#123;</span><br><span class="line">			<span class="keyword">if</span> (errno == EINTR || errno == EAGAIN) &#123;</span><br><span class="line">				<span class="keyword">continue</span>;</span><br><span class="line">			&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">				<span class="keyword">break</span>;</span><br><span class="line">			&#125;</span><br><span class="line">		&#125; <span class="keyword">else</span> <span class="keyword">if</span> (nready == <span class="number">0</span>) &#123;</span><br><span class="line">			<span class="keyword">continue</span>;</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		<span class="built_in">printf</span>(<span class="string">&quot;nready:%d\n&quot;</span>, nready);</span><br><span class="line">		<span class="keyword">int</span> i = <span class="number">0</span>;</span><br><span class="line">		<span class="keyword">for</span> (i = <span class="number">0</span>;i &lt; nready;i ++) &#123;</span><br><span class="line"></span><br><span class="line">			<span class="class"><span class="keyword">struct</span> <span class="title">ep_arg</span> *<span class="title">data</span> =</span> (struct ep_arg*)events[i].data.ptr;</span><br><span class="line">			<span class="keyword">int</span> sockfd = data-&gt;sockfd;</span><br><span class="line"></span><br><span class="line">			<span class="keyword">char</span> buffer[<span class="number">1024</span>] = &#123;<span class="number">0</span>&#125;;</span><br><span class="line">			<span class="class"><span class="keyword">struct</span> <span class="title">sockaddr_in</span> <span class="title">addr</span>;</span></span><br><span class="line">			<span class="keyword">size_t</span> addr_len = <span class="keyword">sizeof</span>(struct sockaddr_in);</span><br><span class="line">			<span class="keyword">int</span> n = recvfrom(sockfd, buffer, <span class="keyword">sizeof</span>(buffer), <span class="number">0</span>, (struct sockaddr*)&amp;addr, (<span class="keyword">socklen_t</span>*)&amp;addr_len);</span><br><span class="line"></span><br><span class="line">			<span class="class"><span class="keyword">struct</span> <span class="title">dns_item</span> *<span class="title">domain_list</span> =</span> <span class="literal">NULL</span>;</span><br><span class="line">            <span class="comment">//解析IP地址，返回的是该域名IP地址的数量</span></span><br><span class="line">			<span class="keyword">int</span> count = dns_parse_response(buffer, &amp;domain_list);</span><br><span class="line"></span><br><span class="line">			data-&gt;cb(domain_list, count); <span class="comment">//call cb</span></span><br><span class="line">			</span><br><span class="line">            <span class="comment">//从epoll中移除</span></span><br><span class="line">			<span class="keyword">int</span> ret = epoll_ctl(epfd, EPOLL_CTL_DEL, sockfd, <span class="literal">NULL</span>);</span><br><span class="line">			<span class="comment">//printf(&quot;epoll_ctl DEL --&gt; sockfd:%d\n&quot;, sockfd);</span></span><br><span class="line"></span><br><span class="line">			close(sockfd); <span class="comment">/////</span></span><br><span class="line"></span><br><span class="line">            <span class="comment">//释放该域名和IP地址所占的内存</span></span><br><span class="line">			dns_async_client_free_domains(domain_list, count);</span><br><span class="line">			<span class="built_in">free</span>(data);</span><br><span class="line"></span><br><span class="line">		&#125;</span><br><span class="line">		</span><br><span class="line">	&#125;</span><br><span class="line">	</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="destroy"><a href="#destroy" class="headerlink" title="destroy()"></a>destroy()</h3><ul>
+<li>关闭epfd;</li>
+<li>结束线程，调用pthread_cancel()；</li>
+</ul>
+<h3 id="result-callback"><a href="#result-callback" class="headerlink" title="result_callback()"></a>result_callback()</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//打印当前的IP地址，IP数量，域名</span></span><br><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">void</span> <span class="title">dns_async_client_result_callback</span><span class="params">(struct dns_item *<span class="built_in">list</span>, <span class="keyword">int</span> count)</span> </span>&#123;</span><br><span class="line">	<span class="keyword">int</span> i = <span class="number">0</span>;</span><br><span class="line">	<span class="built_in">printf</span>(<span class="string">&quot;count: %d\n&quot;</span>,count);</span><br><span class="line">	<span class="keyword">for</span> (i = <span class="number">0</span>;i &lt; count;i ++) &#123;</span><br><span class="line">		<span class="built_in">printf</span>(<span class="string">&quot;name:%s, ip:%s\n&quot;</span>, <span class="built_in">list</span>[i].domain, <span class="built_in">list</span>[i].ip);</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="调试结果"><a href="#调试结果" class="headerlink" title="调试结果"></a>调试结果</h2><p><img src="/2021/05/06/%E5%BC%82%E6%AD%A5%E8%AF%B7%E6%B1%82%E6%B1%A0%E6%A1%86%E6%9E%B6%E5%AE%9E%E7%8E%B0/image1.png" alt="image-20210504195351880"></p>
+<p><img src="/2021/05/06/%E5%BC%82%E6%AD%A5%E8%AF%B7%E6%B1%82%E6%B1%A0%E6%A1%86%E6%9E%B6%E5%AE%9E%E7%8E%B0/image2.png" alt="image-20210504195423705"></p>
+<p><img src="/2021/05/06/%E5%BC%82%E6%AD%A5%E8%AF%B7%E6%B1%82%E6%B1%A0%E6%A1%86%E6%9E%B6%E5%AE%9E%E7%8E%B0/image3.png" alt="image-20210504195440299"></p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>异步究竟快在哪里？我们在设计的时候，用两个线程处理，主线程只管发送请求，而用另一个线程只管接收请求，并解析返回的数据。如果是同步的情况下，我们在请求DNS服务器的时候，是一请求一返回，也就是说，同步的这种串行执行方式，需要等待结果返回才能进行下一次的请求发送；而相比同步，异步是并行处理，发送一个请求完了以后，不需要等待结果的返回。当然，不仅是DNS协议解析可以这样做，当我们提交业务请求到mysql/redis时也可以用异步commit的方式去实现。</p>
+
+    </div>
+
+    
+    
+    
+	<div>
+		
+			<div>
+    
+        <div style="text-align:center;color: #ccc;font-size:14px;">-------------本文结束<i class="fa fa-paw"></i>感谢您的阅读-------------</div>
+    
+</div>
+		
+	</div>
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2021/04/20/%E6%89%8B%E6%92%95%E5%AE%9A%E6%97%B6%E5%99%A8/" rel="prev" title="用最小堆实现定时器以及时间轮">
+      <i class="fa fa-chevron-left"></i> 用最小堆实现定时器以及时间轮
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%A6%82%E4%BD%95%E5%81%9A%E4%B8%80%E4%B8%AA%E5%BC%82%E6%AD%A5%E8%AF%B7%E6%B1%82%EF%BC%9F"><span class="nav-number">1.</span> <span class="nav-text">如何做一个异步请求？</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%A6%82%E4%BD%95%E8%AE%BE%E8%AE%A1%EF%BC%9F"><span class="nav-number">2.</span> <span class="nav-text">如何设计？</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%B0%81%E8%A3%85%E4%B8%80%E7%BB%84API%EF%BC%9A"><span class="nav-number">2.1.</span> <span class="nav-text">封装一组API：</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%BC%82%E6%AD%A5%E5%BF%AB%E5%9C%A8%E5%93%AA%E9%87%8C%EF%BC%9F"><span class="nav-number">2.2.</span> <span class="nav-text">异步快在哪里？</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BB%A5DNS%E4%B8%BA%E4%BE%8B%EF%BC%8C%E6%9D%A5%E5%AE%9E%E7%8E%B0%E5%BC%82%E6%AD%A5%E8%AF%B7%E6%B1%82%E6%B1%A0"><span class="nav-number">3.</span> <span class="nav-text">以DNS为例，来实现异步请求池</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#commit"><span class="nav-number">3.1.</span> <span class="nav-text">commit()</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#init"><span class="nav-number">3.2.</span> <span class="nav-text">init()</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#callback"><span class="nav-number">3.3.</span> <span class="nav-text">callback()</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#destroy"><span class="nav-number">3.4.</span> <span class="nav-text">destroy()</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#result-callback"><span class="nav-number">3.5.</span> <span class="nav-text">result_callback()</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%B0%83%E8%AF%95%E7%BB%93%E6%9E%9C"><span class="nav-number">4.</span> <span class="nav-text">调试结果</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">5.</span> <span class="nav-text">总结</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="梁路"
+      src="/images/my_blog_image.jpg">
+  <p class="site-author-name" itemprop="name">梁路</p>
+  <div class="site-description" itemprop="description">爱一个人太累，所以还是努力赚钱吧</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">16</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">7</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">3</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/liangxiaocode/liangxiaocode.github.io" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;liangxiaocode&#x2F;liangxiaocode.github.io" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:liangluco_worker@163.com" title="E-Mail → mailto:liangluco_worker@163.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">梁路</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div><script color="0,0,255" opacity="0.5" zIndex="-1" count="99" src="https://cdn.jsdelivr.net/npm/canvas-nest.js@1/dist/canvas-nest.js"></script>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+  <script defer src="/lib/three/three.min.js"></script>
+    <script defer src="true"></script>
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"pluginRootPath":"live2dw/","pluginJsPath":"lib/","pluginModelPath":"assets/","tagMode":false,"model":{"jsonPath":"/live2dw/assets/wanko.model.json"},"display":{"position":"right","width":150,"height":300},"mobile":{"show":false},"log":false});</script></body>
+</html>
+<!-- 页面点击小红心 -->
+<script type="text/javascript" src="/js/love.js"></script>
