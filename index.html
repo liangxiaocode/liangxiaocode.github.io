@@ -128,12 +128,12 @@
   </li>
         <li class="menu-item menu-item-categories">
 
-    <a href="/categories/" rel="section"><i class="th fa-fw"></i>分类<span class="badge">7</span></a>
+    <a href="/categories/" rel="section"><i class="th fa-fw"></i>分类<span class="badge">8</span></a>
 
   </li>
         <li class="menu-item menu-item-archives">
 
-    <a href="/archives/" rel="section"><i class="archive fa-fw"></i>归档<span class="badge">16</span></a>
+    <a href="/archives/" rel="section"><i class="archive fa-fw"></i>归档<span class="badge">17</span></a>
 
   </li>
   </ul>
@@ -159,6 +159,149 @@
 
           <div class="content index posts-expand">
             
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://liangxiaocode.github.io/2021/05/13/%E6%B5%85%E8%B0%88mysql%E4%BA%8B%E5%8A%A1%E5%8F%8A%E9%9D%A2%E8%AF%95%E7%9B%B8%E5%85%B3%E9%97%AE%E9%A2%98/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/my_blog_image.jpg">
+      <meta itemprop="name" content="梁路">
+      <meta itemprop="description" content="爱一个人太累，所以还是努力赚钱吧">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="梁萧code">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2021/05/13/%E6%B5%85%E8%B0%88mysql%E4%BA%8B%E5%8A%A1%E5%8F%8A%E9%9D%A2%E8%AF%95%E7%9B%B8%E5%85%B3%E9%97%AE%E9%A2%98/" class="post-title-link" itemprop="url">浅谈mysql事务及面试相关问题</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2021-05-13 00:00:00" itemprop="dateCreated datePublished" datetime="2021-05-13T00:00:00+08:00">2021-05-13</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2021-05-15 11:50:20" itemprop="dateModified" datetime="2021-05-15T11:50:20+08:00">2021-05-15</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/mysql/" itemprop="url" rel="index"><span itemprop="name">mysql</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h1 id="事务"><a href="#事务" class="headerlink" title="事务"></a>事务</h1><p>什么是事务？事务可以由一条或一组SQL语句组成。事务的目的是将数据库从一种一致性状态转换位另一种一致性状态。在数据库提交事务时，要么确保所有修改都已经保存，要么所有修改都不保存。事务时访问并更新数据库各种数据项的一个程序执行单元。在mysql innodb中，每一条语句都是事务；</p>
+<h2 id="事务控制语句"><a href="#事务控制语句" class="headerlink" title="事务控制语句"></a>事务控制语句</h2><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">-- 显示开启事务 </span><br><span class="line">START TRANSACTION | BEGIN </span><br><span class="line">-- 提交事务，并使得已对数据库做的所有修改持久化 </span><br><span class="line">COMMIT </span><br><span class="line">-- 回滚事务，结束用户的事务，并撤销正在进行的所有未提交的修改 </span><br><span class="line">ROLLBACK </span><br><span class="line">-- 创建一个保存点，一个事务可以有多个保存点 </span><br><span class="line">SAVEPOINT identifier </span><br><span class="line">-- 删除一个保存点 </span><br><span class="line">RELEASE SAVEPOINT identifier </span><br><span class="line">-- 事务回滚到保存点 ROLLBACK TO [SAVEPOINT] identifier</span><br></pre></td></tr></table></figure>
+
+<h1 id="ACID"><a href="#ACID" class="headerlink" title="ACID"></a>ACID</h1><h2 id="原子性（Atomicity）"><a href="#原子性（Atomicity）" class="headerlink" title="原子性（Atomicity）"></a>原子性（Atomicity）</h2><p>事务操作要么都做（提交），要么都不做（回滚）；事务时访问并更新数据库各种数据项的一个程序执行单元，是不可分割的工作单元；通过undolog来实现回滚操作。undolog记录的是事务每步具体步骤，当回滚事务时，会对事务每一步操作（CRUD）进行逆运算。</p>
+<h2 id="隔离性（Isolation）"><a href="#隔离性（Isolation）" class="headerlink" title="隔离性（Isolation）"></a>隔离性（Isolation）</h2><p>指的是在多个事务并发访问时，每个事务之间是隔离的，一个事务不应该影响其他事务运行效果。这主要指在并发环境中（例如连接池），当不同的事务同时操作相同的数据时，每个事务都有各自的完整数据空间。由并发事务所作的修改必须与其他并发事务所作的修改隔离。通过MVCC（读）和锁（写）来实现；MVCC主要解决一致性非锁定读，通过记录和获取行版本，而不是使用锁来限制读操作。</p>
+<h2 id="持久性（Durabiliy）"><a href="#持久性（Durabiliy）" class="headerlink" title="持久性（Durabiliy）"></a>持久性（Durabiliy）</h2><p>事务提交后，事务DML操作将会持久化（写入redolog磁盘文件 哪一个页，页偏移值，具体数据）；即使发生宕机等故障，数据库也能将数据回复。redolog记录是物理日志。</p>
+<h2 id="一致性（Consistency）"><a href="#一致性（Consistency）" class="headerlink" title="一致性（Consistency）"></a>一致性（Consistency）</h2><p>一致性指的是事务将数据库从一种一致性状态转变为下一种一致性的状态，在事务执行前后，数据库完整性约束没有被破坏。</p>
+<h1 id="事务并发异常"><a href="#事务并发异常" class="headerlink" title="事务并发异常"></a>事务并发异常</h1><h2 id="脏读"><a href="#脏读" class="headerlink" title="脏读"></a>脏读</h2><p>事务A和事务B开启后，事务A可以读到另一个事务B中未提交的数据；就是说事务A读到脏数据。在slave节点设置为READ UNCOMMITTED时，事务B进行一条插入语句时，不需要提交事务就能在事务A中读到刚刚插入的数据。此时脏读不影响，在slave上查询并不需要特别精准的返回值。</p>
+<h2 id="不可重复读"><a href="#不可重复读" class="headerlink" title="不可重复读"></a>不可重复读</h2><p>事务A和事务B开启后，事务A可以读到事务B中提交的数据；通常是发生在一个事物中两次读到的数据是不一样的情况；不可重复读在隔离级别READ COMMITTED存在。通常来说，不可重复读的问题是可以接收的。</p>
+<h2 id="幻读"><a href="#幻读" class="headerlink" title="幻读"></a>幻读</h2><p>事务中一次读操作不能支持接下来的业务逻辑；通常发生在一个事务中一次读判断接下来写操作失败的情况；幻读在隔离级别REPEATABLE READ及以下存在，但是可以在REPEATABLE READ级别下通过读加锁（使用next-key locking）解决；</p>
+<h1 id="隔离级别"><a href="#隔离级别" class="headerlink" title="隔离级别"></a>隔离级别</h1><p>ISO和ANIS SQL标准制定了四种事务隔离级别的标准，各数据库厂商在正确性和性能之间做了妥协，并没有严格遵循这些标准；MYSQL innodb默认支持的隔离级别是REPEATABLE READ；</p>
+<ul>
+<li>READ UNCOMMITTED<ul>
+<li>读：不做任何处理</li>
+<li>写：自动加X锁</li>
+</ul>
+</li>
+<li>READ COMMITTED<ul>
+<li>读：MVCC，读取最新版本的行数据</li>
+<li>写：自动加X锁</li>
+</ul>
+</li>
+<li>REPEATABLE READ<ul>
+<li>读：MVCC，读取事务开始前版本的行数据</li>
+<li>写：自动加X锁</li>
+</ul>
+</li>
+<li>SERIALIZABLE<ul>
+<li>读：自动加S锁</li>
+<li>写：自动加X锁</li>
+</ul>
+</li>
+</ul>
+<h1 id="MVCC"><a href="#MVCC" class="headerlink" title="MVCC"></a>MVCC</h1><p>在READ COMMITTED和REPEATABLE READ下，innodb使用MVCC；然后对于快照数据的定义不同；在READ COMMITTED隔离级别下，对于快照数据总是读取被锁定行的最新一份快照数据；而在REPEATABLE READ隔离级别下，对于快照数据总是读取事务开始时的行数据版本。那么为什么读取快照数据不需要上锁？因为没有事务会对历史数据进行修改操作。</p>
+<h1 id="锁"><a href="#锁" class="headerlink" title="锁"></a>锁</h1><p>锁机制用于管理对共享资源的并发访问；用来实现事务的隔离级别。</p>
+<h2 id="锁类型"><a href="#锁类型" class="headerlink" title="锁类型"></a>锁类型</h2><ul>
+<li>共享锁（S）：事务读操作时加的锁，对某一行加锁。</li>
+<li>排他锁（X）：事务删除或更新加的锁，除了读数据，插入、删除、修改都需要对某一行加锁。</li>
+<li>意向共享锁（IS）：对一张表中某几行加的共享锁。</li>
+<li>意向排他锁（IX）：对一张表中某几行加的排他锁。</li>
+</ul>
+<h2 id="注意事项"><a href="#注意事项" class="headerlink" title="注意事项"></a>注意事项</h2><ul>
+<li><p>共享锁和排他锁都是行级锁，MYSQL当中事务采用的是粒度锁：表锁（B+树）、页锁（B+树叶子节点）、行锁（B+树叶子节点当中的某一行记录）；</p>
+</li>
+<li><p>意向共享锁和意向排他锁都是表级别的锁；</p>
+</li>
+<li><p>当想为某一行添加S锁，先自动为所在的页和表添加意向锁IS，再为该行添加S锁；</p>
+</li>
+<li><p>当想为某一行添加X锁，先自动为所在的页和表添加意向锁IX，再为该行添加X锁；</p>
+</li>
+</ul>
+<h2 id="锁算法"><a href="#锁算法" class="headerlink" title="锁算法"></a>锁算法</h2><ul>
+<li>Record Lock:记录锁，单行记录上的锁；</li>
+<li>Gap Lock:间隙锁，锁定一个范围，但不包含记录本身，全开区间，REPEATABLE READ级别及以上支持间隙锁；</li>
+<li>Next-Key Lock:记录锁+间隙锁，锁定一个范围，并且锁住记录本身，左开右闭区间；</li>
+<li>Insert Intention Lock:插入意向锁；在多事务同时写入不同数据至同一索引间隙的并不需要等待其他事务完成，不会发生锁等待。例如：假设有一个记录索引包含键值4和7，两个不同的事务分别插入5和6，每个事务都会产生一个加在4-7的插入意向锁，获取在插入行上的排他锁，但是不会被互相锁住，因为数据行并不冲突；</li>
+<li>AUTO-INC Lock:自增锁，是一个特殊的表级锁，发生在AUTO_INCREMENT约束下的插入操作；采用的一种特殊的表锁机制；完成对自增长值插入的SQL语句后立即释放；在大数据量的插入会影响插入性能，因为另一个事务中的插入会被阻塞；从MYSQL5.1.22开始提供一种轻量级互斥量的自增长实现机制，该机制提高了自增长值插入的性能；</li>
+</ul>
+<h2 id="锁的对象"><a href="#锁的对象" class="headerlink" title="锁的对象"></a>锁的对象</h2><p>行级锁是针对表的索引加锁，索引包括聚集索引和辅助索引；表级锁是针对页或表进行加锁；我们考虑InnoDB在READ COMMITTED和REPEATABLE READ级别下锁的情况；</p>
+<ul>
+<li><p>示例1</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">select * from t where id &#x3D; 5 for update lock in share mode;</span><br><span class="line">-- id 为主键 Read committed 隔离级别 </span><br><span class="line">-- 在主键 id &#x3D; 5 行上加 X 锁 </span><br><span class="line"></span><br><span class="line">-- id 是唯一索引 Read committed 隔离级别 </span><br><span class="line">-- 在唯一索引id&#x3D;5行上加X锁，在主键索引上对应行加X锁 </span><br><span class="line"></span><br><span class="line">-- id 是非唯一索引 Read committed 隔离级别 </span><br><span class="line">-- 在非唯一索引上所有id&#x3D;5行加上X锁，对应的主键索引列加上X锁 </span><br><span class="line"></span><br><span class="line">-- id 不是索引 Read committed 隔离级别 </span><br><span class="line">-- 在聚集索引上扫描，所有行上加X锁，此处有个优化，不满足的行在加锁后，判断不满足即可释放锁 </span><br><span class="line"></span><br><span class="line">-- id 为主键 repeatable read 隔离级别 </span><br><span class="line">-- 在主键id&#x3D;5行上加X锁 </span><br><span class="line"></span><br><span class="line">-- id 是唯一索引 repeatable read 隔离级别 </span><br><span class="line">-- 在唯一索引id&#x3D;5行上加X锁，在主键索引上对应列加X锁 </span><br><span class="line"></span><br><span class="line">-- id 是非唯一索引 repeatable read 隔离级别 </span><br><span class="line">-- 在非唯一索引上查找id&#x3D;5行，找到则加上X锁和GAP锁，然后对应的聚集索引加上X锁; 没有找到则 加上GAP锁 </span><br><span class="line"></span><br><span class="line">-- id 不是索引 repeatable read 隔离级别 </span><br><span class="line">-- 在聚集索引上扫描，所有行加上X锁和GAP锁</span><br></pre></td></tr></table></figure></li>
+<li><p>示例2</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">-- 在 RR 下 </span><br><span class="line">-- 不加任何锁 </span><br><span class="line">select .. from t; </span><br><span class="line">-- 扫描到任何索引行上加S锁（next-key lock） 在聚集索引上加X锁 </span><br><span class="line"></span><br><span class="line">select...from t lock in share mode; </span><br><span class="line">-- 扫描到任何索引行上加X锁（next-key lock） 在聚集索引上加X锁 </span><br><span class="line"></span><br><span class="line">select..from t for update; </span><br><span class="line">-- 扫描到任何索引行上加X锁（next-key lock） 在聚集索引上加X锁 </span><br><span class="line"></span><br><span class="line">update..where condition delete from..where condition </span><br><span class="line">-- 如果是间隙插入，先添加 insert intention lock, 后在该行上添加X锁; </span><br><span class="line">-- 如果是递增插入，添加 auto-inc lock 或者 轻量级的互斥锁; </span><br><span class="line">insert into ...</span><br></pre></td></tr></table></figure>
+<h1 id="redo"><a href="#redo" class="headerlink" title="redo"></a>redo</h1><p>redo日志用来实现事务的持久性；内存中包含redo log buffer，磁盘中包含redo log file;当事务提交时，必须先将该事务的所有日志写入到重做日志文件进行持久化，待事务的commit操作完成时才完成事务的提交；redo log顺序写，记录的是每个页的修改（页、页偏移量、以及修改的内容）；在数据运行时不需要对redo log的文件进行读取操作，只有在发生宕机的时候，才会拿redo log进行恢复；</p>
+</li>
+</ul>
+<h1 id="undo"><a href="#undo" class="headerlink" title="undo"></a>undo</h1><p>undo日志用来帮助事务回滚以及MVCC的功能；存储在共享表空间中；undo是逻辑日志，回滚时将数据库逻辑恢复到原来的样子，根据undo log的记录，做之前的逆运算；</p>
+<p>比如事务中有insert操作，那么执行delete操作；对于update操作执行相反的update操作；</p>
+<p>同时undo日志记录行的版本信息，用于处理MVCC功能；</p>
+
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
       
   
   
@@ -983,93 +1126,6 @@
   
   
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="https://liangxiaocode.github.io/2021/03/24/mysql%E5%BA%95%E5%B1%82%E9%9D%A2%E8%AF%95%E5%BF%85%E8%81%8A/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/my_blog_image.jpg">
-      <meta itemprop="name" content="梁路">
-      <meta itemprop="description" content="爱一个人太累，所以还是努力赚钱吧">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="梁萧code">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2021/03/24/mysql%E5%BA%95%E5%B1%82%E9%9D%A2%E8%AF%95%E5%BF%85%E8%81%8A/" class="post-title-link" itemprop="url">mysql底层面试必聊</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2021-03-24 00:00:00" itemprop="dateCreated datePublished" datetime="2021-03-24T00:00:00+08:00">2021-03-24</time>
-            </span>
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="far fa-calendar-check"></i>
-                </span>
-                <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2021-04-03 12:15:32" itemprop="dateModified" datetime="2021-04-03T12:15:32+08:00">2021-04-03</time>
-              </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B8%8E%E7%AE%97%E6%B3%95/" itemprop="url" rel="index"><span itemprop="name">数据结构与算法</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h1 id="1-谈一谈你对mysql索引的理解"><a href="#1-谈一谈你对mysql索引的理解" class="headerlink" title="1.谈一谈你对mysql索引的理解"></a>1.谈一谈你对mysql索引的理解</h1><h3 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h3><p><strong>索引的数据结构都是用的B+树</strong></p>
-<p><strong>hash表也可以作为索引的数据结构，但存储引擎必须是memory，innodb存储引擎支持自适应hash，用户不可以干扰。</strong></p>
-<p><strong>memory数据存储在内存中，断电后不可数据恢复。</strong></p>
-<h2 id="存储引擎"><a href="#存储引擎" class="headerlink" title="存储引擎"></a>存储引擎</h2><p>数据在磁盘上的不同组织形式</p>
-<p><strong>innodb and myisam</strong></p>
-<p>innodb:索引和数据是存储在一个文件中，支持事务和外键，支持表锁和行锁。</p>
-<p>myisam:索引和数据存储在不同文件中，不支持事务和外键，只支持表锁。</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2021/03/24/mysql%E5%BA%95%E5%B1%82%E9%9D%A2%E8%AF%95%E5%BF%85%E8%81%8A/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
 
   
   <nav class="pagination">
@@ -1141,14 +1197,14 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">16</span>
+          <span class="site-state-item-count">17</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">7</span>
+        <span class="site-state-item-count">8</span>
         <span class="site-state-item-name">分类</span></a>
       </div>
       <div class="site-state-item site-state-tags">
